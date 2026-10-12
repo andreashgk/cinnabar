@@ -228,7 +228,8 @@ animated rig remotes use. All three below flow from that.
 - Terrain blocks (uncompiled): ice, slime, honey, tinted glass, powder snow, snow layers, named opaque cubes, amethyst
   and standing coral-fan sprites, redstone bases now compile; lanterns, candles, end/lightning rods, cauldron, hopper,
   anvils, pistons, scaffolding, dripleaf and slime/honey inner cubes still diagnostic pending measurement; campfire logs,
-  ash bed and flames are laid out from the pack art with unmeasured box constants (HIGH).
+  ember bed and flames match the 26.30 client model. The model is unchanged for 1.26.50 but remains
+  unverified there (HIGH).
 
 ## HUD (Java target; chat/scoreboard intentionally Java — not gaps)
 - Title/subtitle/action bar centered, magnified, alpha-faded from SetTitle timings; placement constants need measurement (uncompiled).

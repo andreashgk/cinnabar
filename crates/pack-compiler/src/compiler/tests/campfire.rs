@@ -81,6 +81,293 @@ fn compile_campfires() -> (RuntimeAssets, Vec<RegistryRecord>) {
     )
 }
 
+/// Expected pixel bounds, lit texture selectors and final UVs in D/U/N/S/W/E order.
+type ExpectedBox = ([i16; 3], [i16; 3], [(bool, [[u16; 2]; 4]); 6]);
+
+const EXPECTED_BOXES: [(&str, [ExpectedBox; 5]); 4] = [
+    (
+        "north",
+        [
+            // Lower A.
+            (
+                [1, 0, 0],
+                [5, 4, 16],
+                [
+                    (false, [[0, 4], [16, 4], [16, 0], [0, 0]]), // down
+                    (false, [[16, 0], [0, 0], [0, 4], [16, 4]]), // up
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // north
+                    (false, [[0, 4], [0, 8], [4, 8], [4, 4]]),   // south
+                    (false, [[0, 0], [16, 0], [16, 4], [0, 4]]), // west
+                    (true, [[0, 5], [16, 5], [16, 1], [0, 1]]),  // east
+                ],
+            ),
+            // Upper A.
+            (
+                [0, 3, 1],
+                [16, 7, 5],
+                [
+                    (true, [[0, 8], [16, 8], [16, 4], [0, 4]]),  // down
+                    (false, [[0, 0], [0, 4], [16, 4], [16, 0]]), // up
+                    (true, [[0, 0], [16, 0], [16, 4], [0, 4]]),  // north
+                    (true, [[0, 0], [0, 4], [16, 4], [16, 0]]),  // south
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // west
+                    (false, [[0, 8], [4, 8], [4, 4], [0, 4]]),   // east
+                ],
+            ),
+            // Lower B.
+            (
+                [11, 0, 0],
+                [15, 4, 16],
+                [
+                    (false, [[0, 4], [16, 4], [16, 0], [0, 0]]), // down
+                    (false, [[16, 0], [0, 0], [0, 4], [16, 4]]), // up
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // north
+                    (false, [[0, 4], [0, 8], [4, 8], [4, 4]]),   // south
+                    (true, [[0, 1], [16, 1], [16, 5], [0, 5]]),  // west
+                    (false, [[0, 4], [16, 4], [16, 0], [0, 0]]), // east
+                ],
+            ),
+            // Upper B.
+            (
+                [0, 3, 11],
+                [16, 7, 15],
+                [
+                    (true, [[0, 8], [16, 8], [16, 4], [0, 4]]),  // down
+                    (false, [[0, 0], [0, 4], [16, 4], [16, 0]]), // up
+                    (true, [[16, 0], [0, 0], [0, 4], [16, 4]]),  // north
+                    (true, [[16, 0], [16, 4], [0, 4], [0, 0]]),  // south
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // west
+                    (false, [[0, 8], [4, 8], [4, 4], [0, 4]]),   // east
+                ],
+            ),
+            // Ember bed.
+            (
+                [5, 0, 0],
+                [11, 1, 16],
+                [
+                    (false, [[0, 14], [16, 14], [16, 8], [0, 8]]), // down
+                    (true, [[16, 8], [0, 8], [0, 14], [16, 14]]),  // up
+                    (false, [[6, 15], [0, 15], [0, 16], [6, 16]]), // north
+                    (false, [[10, 15], [10, 16], [16, 16], [16, 15]]), // south
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),     // west
+                    (false, [[0, 8], [4, 8], [4, 4], [0, 4]]),     // east
+                ],
+            ),
+        ],
+    ),
+    (
+        "west",
+        [
+            // Lower A.
+            (
+                [0, 0, 1],
+                [16, 4, 5],
+                [
+                    (false, [[0, 0], [0, 4], [16, 4], [16, 0]]), // down
+                    (false, [[16, 4], [16, 0], [0, 0], [0, 4]]), // up
+                    (false, [[0, 0], [16, 0], [16, 4], [0, 4]]), // north
+                    (true, [[0, 1], [0, 5], [16, 5], [16, 1]]),  // south
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // west
+                    (false, [[0, 8], [4, 8], [4, 4], [0, 4]]),   // east
+                ],
+            ),
+            // Upper A.
+            (
+                [1, 3, 0],
+                [5, 7, 16],
+                [
+                    (true, [[16, 4], [0, 4], [0, 8], [16, 8]]),  // down
+                    (false, [[16, 0], [0, 0], [0, 4], [16, 4]]), // up
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // north
+                    (false, [[0, 4], [0, 8], [4, 8], [4, 4]]),   // south
+                    (true, [[16, 0], [0, 0], [0, 4], [16, 4]]),  // west
+                    (true, [[16, 4], [0, 4], [0, 0], [16, 0]]),  // east
+                ],
+            ),
+            // Lower B.
+            (
+                [0, 0, 11],
+                [16, 4, 15],
+                [
+                    (false, [[0, 0], [0, 4], [16, 4], [16, 0]]), // down
+                    (false, [[16, 4], [16, 0], [0, 0], [0, 4]]), // up
+                    (true, [[0, 1], [16, 1], [16, 5], [0, 5]]),  // north
+                    (false, [[0, 0], [0, 4], [16, 4], [16, 0]]), // south
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // west
+                    (false, [[0, 8], [4, 8], [4, 4], [0, 4]]),   // east
+                ],
+            ),
+            // Upper B.
+            (
+                [11, 3, 0],
+                [15, 7, 16],
+                [
+                    (true, [[16, 4], [0, 4], [0, 8], [16, 8]]),  // down
+                    (false, [[16, 0], [0, 0], [0, 4], [16, 4]]), // up
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // north
+                    (false, [[0, 4], [0, 8], [4, 8], [4, 4]]),   // south
+                    (true, [[0, 0], [16, 0], [16, 4], [0, 4]]),  // west
+                    (true, [[0, 4], [16, 4], [16, 0], [0, 0]]),  // east
+                ],
+            ),
+            // Ember bed.
+            (
+                [0, 0, 5],
+                [16, 1, 11],
+                [
+                    (false, [[0, 8], [0, 14], [16, 14], [16, 8]]), // down
+                    (true, [[16, 14], [16, 8], [0, 8], [0, 14]]),  // up
+                    (false, [[0, 4], [0, 8], [4, 8], [4, 4]]),     // north
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),     // south
+                    (false, [[16, 15], [10, 15], [10, 16], [16, 16]]), // west
+                    (false, [[0, 16], [6, 16], [6, 15], [0, 15]]), // east
+                ],
+            ),
+        ],
+    ),
+    (
+        "south",
+        [
+            // Lower A.
+            (
+                [11, 0, 0],
+                [15, 4, 16],
+                [
+                    (false, [[16, 0], [0, 0], [0, 4], [16, 4]]), // down
+                    (false, [[0, 4], [16, 4], [16, 0], [0, 0]]), // up
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // north
+                    (false, [[0, 4], [0, 8], [4, 8], [4, 4]]),   // south
+                    (true, [[16, 1], [0, 1], [0, 5], [16, 5]]),  // west
+                    (false, [[16, 4], [0, 4], [0, 0], [16, 0]]), // east
+                ],
+            ),
+            // Upper A.
+            (
+                [0, 3, 11],
+                [16, 7, 15],
+                [
+                    (true, [[0, 8], [16, 8], [16, 4], [0, 4]]),  // down
+                    (false, [[16, 4], [16, 0], [0, 0], [0, 4]]), // up
+                    (true, [[16, 0], [0, 0], [0, 4], [16, 4]]),  // north
+                    (true, [[16, 0], [16, 4], [0, 4], [0, 0]]),  // south
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // west
+                    (false, [[0, 8], [4, 8], [4, 4], [0, 4]]),   // east
+                ],
+            ),
+            // Lower B.
+            (
+                [1, 0, 0],
+                [5, 4, 16],
+                [
+                    (false, [[16, 0], [0, 0], [0, 4], [16, 4]]), // down
+                    (false, [[0, 4], [16, 4], [16, 0], [0, 0]]), // up
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // north
+                    (false, [[0, 4], [0, 8], [4, 8], [4, 4]]),   // south
+                    (false, [[16, 0], [0, 0], [0, 4], [16, 4]]), // west
+                    (true, [[16, 5], [0, 5], [0, 1], [16, 1]]),  // east
+                ],
+            ),
+            // Upper B.
+            (
+                [0, 3, 1],
+                [16, 7, 5],
+                [
+                    (true, [[0, 8], [16, 8], [16, 4], [0, 4]]),  // down
+                    (false, [[16, 4], [16, 0], [0, 0], [0, 4]]), // up
+                    (true, [[0, 0], [16, 0], [16, 4], [0, 4]]),  // north
+                    (true, [[0, 0], [0, 4], [16, 4], [16, 0]]),  // south
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // west
+                    (false, [[0, 8], [4, 8], [4, 4], [0, 4]]),   // east
+                ],
+            ),
+            // Ember bed.
+            (
+                [5, 0, 0],
+                [11, 1, 16],
+                [
+                    (false, [[16, 8], [0, 8], [0, 14], [16, 14]]), // down
+                    (true, [[0, 14], [16, 14], [16, 8], [0, 8]]),  // up
+                    (false, [[16, 15], [10, 15], [10, 16], [16, 16]]), // north
+                    (false, [[0, 15], [0, 16], [6, 16], [6, 15]]), // south
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),     // west
+                    (false, [[0, 8], [4, 8], [4, 4], [0, 4]]),     // east
+                ],
+            ),
+        ],
+    ),
+    (
+        "east",
+        [
+            // Lower A.
+            (
+                [0, 0, 11],
+                [16, 4, 15],
+                [
+                    (false, [[16, 4], [16, 0], [0, 0], [0, 4]]), // down
+                    (false, [[0, 0], [0, 4], [16, 4], [16, 0]]), // up
+                    (true, [[16, 1], [0, 1], [0, 5], [16, 5]]),  // north
+                    (false, [[16, 0], [16, 4], [0, 4], [0, 0]]), // south
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // west
+                    (false, [[0, 8], [4, 8], [4, 4], [0, 4]]),   // east
+                ],
+            ),
+            // Upper A.
+            (
+                [11, 3, 0],
+                [15, 7, 16],
+                [
+                    (true, [[16, 4], [0, 4], [0, 8], [16, 8]]),  // down
+                    (false, [[0, 4], [16, 4], [16, 0], [0, 0]]), // up
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // north
+                    (false, [[0, 4], [0, 8], [4, 8], [4, 4]]),   // south
+                    (true, [[0, 0], [16, 0], [16, 4], [0, 4]]),  // west
+                    (true, [[0, 4], [16, 4], [16, 0], [0, 0]]),  // east
+                ],
+            ),
+            // Lower B.
+            (
+                [0, 0, 1],
+                [16, 4, 5],
+                [
+                    (false, [[16, 4], [16, 0], [0, 0], [0, 4]]), // down
+                    (false, [[0, 0], [0, 4], [16, 4], [16, 0]]), // up
+                    (false, [[16, 0], [0, 0], [0, 4], [16, 4]]), // north
+                    (true, [[16, 1], [16, 5], [0, 5], [0, 1]]),  // south
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // west
+                    (false, [[0, 8], [4, 8], [4, 4], [0, 4]]),   // east
+                ],
+            ),
+            // Upper B.
+            (
+                [1, 3, 0],
+                [5, 7, 16],
+                [
+                    (true, [[16, 4], [0, 4], [0, 8], [16, 8]]),  // down
+                    (false, [[0, 4], [16, 4], [16, 0], [0, 0]]), // up
+                    (false, [[4, 4], [0, 4], [0, 8], [4, 8]]),   // north
+                    (false, [[0, 4], [0, 8], [4, 8], [4, 4]]),   // south
+                    (true, [[16, 0], [0, 0], [0, 4], [16, 4]]),  // west
+                    (true, [[16, 4], [0, 4], [0, 0], [16, 0]]),  // east
+                ],
+            ),
+            // Ember bed.
+            (
+                [0, 0, 5],
+                [16, 1, 11],
+                [
+                    (false, [[16, 14], [16, 8], [0, 8], [0, 14]]), // down
+                    (true, [[0, 8], [0, 14], [16, 14], [16, 8]]),  // up
+                    (false, [[4, 8], [4, 4], [0, 4], [0, 8]]),     // north
+                    (false, [[0, 8], [4, 8], [4, 4], [0, 4]]),     // south
+                    (false, [[6, 15], [0, 15], [0, 16], [6, 16]]), // west
+                    (false, [[10, 16], [16, 16], [16, 15], [10, 15]]), // east
+                ],
+            ),
+        ],
+    ),
+];
+
+/// Returns the minimum and maximum coordinate on one axis.
 fn span(quads: &[assets::ModelQuad], axis: usize) -> [i16; 2] {
     let coordinates = quads.iter().flat_map(|q| q.positions.map(|p| p[axis]));
     [
@@ -89,21 +376,52 @@ fn span(quads: &[assets::ModelQuad], axis: usize) -> [i16; 2] {
     ]
 }
 
+/// Expands the face's ordered corner indices into carrier coordinates.
+fn face_positions(min: [i16; 3], max: [i16; 3], face: BlockFace) -> [[i16; 3]; 4] {
+    let corners: [usize; 4] = match face {
+        BlockFace::Down => [4, 0, 1, 5],
+        BlockFace::Up => [7, 3, 2, 6],
+        BlockFace::North => [2, 3, 1, 0],
+        BlockFace::South => [6, 4, 5, 7],
+        BlockFace::West => [6, 2, 0, 4],
+        BlockFace::East => [5, 1, 3, 7],
+    };
+    corners.map(|corner| {
+        std::array::from_fn(|axis| {
+            if corner & (1 << axis) == 0 {
+                min[axis] * 16
+            } else {
+                max[axis] * 16
+            }
+        })
+    })
+}
+
 #[test]
-fn campfires_draw_crossed_logs_and_their_own_flames_instead_of_an_envelope() {
+fn campfires_match_every_facing_box_face_and_uv() {
     let (runtime, records) = compile_campfires();
+    let face_order = [
+        BlockFace::Down,
+        BlockFace::Up,
+        BlockFace::North,
+        BlockFace::South,
+        BlockFace::West,
+        BlockFace::East,
+    ];
     let mut seen = 0;
     let mut flames = Vec::new();
     for record in records.iter().filter(|r| r.name.contains("campfire")) {
         seen += 1;
         let state: serde_json::Value = serde_json::from_str(&record.canonical_state).unwrap();
         let lit = state["extinguished"]["value"] == 0;
-        let along_x = matches!(
-            state["minecraft:cardinal_direction"]["value"]
-                .as_str()
-                .unwrap(),
-            "east" | "west"
-        );
+        let direction = state["minecraft:cardinal_direction"]["value"]
+            .as_str()
+            .unwrap();
+        let expected = &EXPECTED_BOXES
+            .iter()
+            .find(|(name, _)| *name == direction)
+            .unwrap()
+            .1;
         let visual = runtime.resolve(NetworkIdMode::Sequential, record.sequential_id);
         assert_eq!(
             visual.kind(),
@@ -118,54 +436,60 @@ fn campfires_draw_crossed_logs_and_their_own_flames_instead_of_an_envelope() {
         let unlit = visual.face(BlockFace::Down).material_id();
         let embers = visual.face(BlockFace::South).material_id();
         let flame = visual.face(BlockFace::Up).material_id();
-
-        // Logs and ash bed stay below 7 pixels and cover the full block footprint.
         let (boxes, planes) = quads.split_at(30);
-        assert_eq!(span(boxes, 1), [0, 112]);
-        assert_eq!(span(boxes, 0), [0, 256]);
-        assert_eq!(span(boxes, 2), [0, 256]);
-        // The lower logs run along the axis the direction selects.
-        let lower = &boxes[..12];
-        assert_eq!(span(lower, 1), [0, 64]);
-        assert_eq!(span(lower, if along_x { 0 } else { 2 }), [0, 256]);
-        assert_eq!(span(lower, if along_x { 2 } else { 0 }), [16, 240]);
-        assert!(boxes.iter().any(|q| q.material == unlit));
-
-        // Log tops, bottoms and the lower logs' outward sides stay plain bark.
-        // While lit, both long sides of the upper logs, the lower log sides
-        // facing the fire and the ash bed use the lit art.
-        for log in boxes[..24].chunks_exact(6) {
-            assert_eq!(log[BlockFace::Up as usize].material, unlit);
-            assert_eq!(log[BlockFace::Down as usize].material, unlit);
-        }
-        let lit_faces = boxes.iter().filter(|q| q.material == embers).count();
-        if lit {
-            assert_eq!(lit_faces, 4 + 2 + 6);
-            for face in boxes[..24].iter().filter(|q| q.material == embers) {
-                let plane = (0..3)
-                    .find(|&axis| {
-                        face.positions
-                            .iter()
-                            .all(|p| p[axis] == face.positions[0][axis])
-                    })
-                    .unwrap();
-                let bottom = face.positions.iter().map(|p| p[1]).min().unwrap();
-                if bottom == 0 {
-                    assert!(matches!(face.positions[0][plane], 80 | 176));
-                }
-                // The charred lower edge of the lit bark strip runs along the
-                // bottom of the face.
-                for (position, uv) in face.positions.iter().zip(face.uvs) {
-                    assert_eq!(uv[1] == 4 * 256, position[1] == bottom);
-                }
+        for (box_index, (actual, (min, max, faces))) in
+            boxes.chunks_exact(6).zip(expected).enumerate()
+        {
+            for axis in 0..3 {
+                assert_eq!(
+                    span(actual, axis),
+                    [min[axis] * 16, max[axis] * 16],
+                    "{direction} box {box_index} axis {axis}"
+                );
             }
+            for ((quad, (uses_lit, uvs)), face) in actual.iter().zip(faces).zip(face_order) {
+                assert_eq!(
+                    quad.material,
+                    if lit && *uses_lit { embers } else { unlit },
+                    "{direction} box {box_index} {face:?}"
+                );
+                assert_eq!(
+                    quad.uvs,
+                    uvs.map(|uv| uv.map(|p| p * 256)),
+                    "{direction} box {box_index} {face:?}"
+                );
+                assert_eq!(quad.flags, face.model_quad_face_id());
+                assert_eq!(
+                    quad.positions,
+                    face_positions(*min, *max, face),
+                    "{direction} box {box_index} {face:?} vertex order"
+                );
+            }
+        }
+        // Upper log bottoms are lit; the ember bed has exactly one lit face.
+        for box_index in [1, 3] {
+            assert_eq!(
+                boxes[box_index * 6].material,
+                if lit { embers } else { unlit }
+            );
+        }
+        for (index, quad) in boxes[24..].iter().enumerate() {
+            assert_eq!(
+                quad.material,
+                if lit && index == 1 { embers } else { unlit }
+            );
+        }
+        if lit {
+            assert_eq!(boxes.iter().filter(|q| q.material == embers).count(), 9);
             assert_eq!(planes.len(), 2);
             for plane in planes {
                 assert_eq!(plane.material, flame);
                 assert_ne!(plane.flags & assets::MODEL_QUAD_FLAG_TWO_SIDED, 0);
             }
             assert_eq!(span(planes, 1), [16, 256]);
-            flames.push((record.name.clone(), flame));
+            assert_eq!(span(planes, 0), [13, 243]);
+            assert_eq!(span(planes, 2), [13, 243]);
+            flames.push((record.name.clone(), flame, embers));
         } else {
             assert!(planes.is_empty());
             assert!(boxes.iter().all(|q| q.material == unlit));
@@ -174,9 +498,12 @@ fn campfires_draw_crossed_logs_and_their_own_flames_instead_of_an_envelope() {
     assert_eq!(seen, 16);
     let campfire = flames
         .iter()
-        .find(|(name, _)| name.as_ref() == "minecraft:campfire");
+        .find(|(name, _, _)| name.as_ref() == "minecraft:campfire")
+        .unwrap();
     let soul = flames
         .iter()
-        .find(|(name, _)| name.as_ref() == "minecraft:soul_campfire");
-    assert_ne!(campfire.unwrap().1, soul.unwrap().1);
+        .find(|(name, _, _)| name.as_ref() == "minecraft:soul_campfire")
+        .unwrap();
+    assert_ne!(campfire.1, soul.1);
+    assert_ne!(campfire.2, soul.2);
 }
