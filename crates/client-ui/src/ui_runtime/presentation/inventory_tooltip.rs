@@ -151,8 +151,14 @@ pub(super) fn enchantment_name(runtime: &UiRuntime, id: i16, level: u8) -> Strin
     format!("{label} {}", level_text(runtime, level))
 }
 
-/// The localized default name of a stack, naming a vanilla potion's type.
+/// The localized default name, preferring a component name over a potion's type.
 fn default_name(runtime: &UiRuntime, identifier: &str, metadata: u32) -> String {
+    if runtime
+        .item_components(identifier)
+        .is_some_and(|components| components.display_name.is_some())
+    {
+        return runtime.localized_item_name(identifier);
+    }
     potion(Some(identifier), metadata)
         .and_then(|(descriptor, form)| {
             runtime.translation(&format!(

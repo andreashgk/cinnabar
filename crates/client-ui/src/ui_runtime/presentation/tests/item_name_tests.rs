@@ -346,3 +346,50 @@ fn selected_item_name_names_the_held_potion() {
         Some("Splash Potion of Fire Resistance§r")
     );
 }
+
+#[test]
+fn potion_component_names_take_precedence_in_tooltip_and_hud() {
+    let identifier = "minecraft:splash_potion";
+    for (component_name, expected) in [
+        (None, "Splash Potion of Fire Resistance§r"),
+        (Some("Fortified Brew"), "Fortified Brew§r"),
+        (Some("potion.fireResistance"), "Fire Resistance§r"),
+        (Some(""), "§r"),
+    ] {
+        let mut player = player_state::PlayerState::new(1);
+        let mut runtime = potion_lang_runtime();
+        runtime.set_session_items(Some(Arc::new(
+            crate::ui_runtime::item_facts::SessionItemComponents::from_iter([(
+                Arc::from(identifier),
+                protocol::ItemComponents {
+                    display_name: component_name.map(Arc::from),
+                    ..Default::default()
+                },
+            )]),
+        )));
+        player
+            .facts
+            .publish_player_game_mode(PlayerGameMode::Survival);
+        let stack = potion(identifier, 12);
+        publish(&mut runtime, &mut player, vec![stack.clone()]);
+        let stream = stream();
+        let mut presentation = UiPresentationRuntime::new(fixture_font()).unwrap();
+        player.inventory.set_local_selected_slot(0);
+        capture_hud_frame(
+            &player,
+            &mut runtime,
+            &mut presentation,
+            Some(&stream),
+            semantic_input::PerspectiveMode::FirstPerson,
+            1_000,
+            Default::default(),
+        );
+        let lines = inventory_tooltip::tooltip_lines(&runtime, &stack, Some(identifier), None);
+        assert_eq!(lines[0].text, expected, "component: {component_name:?}");
+        assert_eq!(
+            presentation.hud_frame().selected_item_name.as_deref(),
+            Some(expected),
+            "component: {component_name:?}"
+        );
+    }
+}
