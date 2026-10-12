@@ -4998,8 +4998,10 @@ Scope: block registry + block-state → model/texture mapping (generated export 
           campfire items, tinted scrolling beacon beams, end portal, sign text and
           model-shaped break cracks. Entity-drawn block states compile to
           `Invisible` terrain (`entity_drawn.rs`). Filled maps, spawner mob,
-          flower-pot plants, conduit wind cube, campfire/hopper/brewing-stand
-          terrain and native lighting/measurement remain open.
+          flower-pot plants, conduit wind cube, hopper/brewing-stand terrain and
+          native lighting/measurement remain open. Campfire terrain draws logs,
+          ash bed and flames laid out from the pack art, with unmeasured box
+          constants.
     - [ ] Merge both the Axolotl protocol-fix branch and Cinnabar feature branch
       into their respective `main` branches through reviewed PRs using normal
       history-preserving merge commits (never squash or rebase the feature
