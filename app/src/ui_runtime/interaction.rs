@@ -822,20 +822,12 @@ pub(crate) fn drive_chat_keyboard_input(
                     runtime.close_chat();
                 }
             }
-            KeyCode::Backspace if is_chat_edit_shortcut(&held) => {
-                runtime.mutate_chat_editor(ChatEditor::backspace_word);
-            }
-            KeyCode::Delete if is_chat_edit_shortcut(&held) => {
-                runtime.mutate_chat_editor(ChatEditor::delete_word);
+            key if is_chat_edit_shortcut(&held) && chat_modifiers::is_word_edit(key) => {
+                runtime
+                    .mutate_chat_editor(|editor| chat_modifiers::word_edit(editor, key, selecting));
             }
             KeyCode::Backspace => runtime.backspace_chat_text(),
             KeyCode::Delete => runtime.delete_chat_text(),
-            KeyCode::ArrowLeft if is_chat_edit_shortcut(&held) => {
-                runtime.mutate_chat_editor(|editor| editor.move_word_left(selecting));
-            }
-            KeyCode::ArrowRight if is_chat_edit_shortcut(&held) => {
-                runtime.mutate_chat_editor(|editor| editor.move_word_right(selecting));
-            }
             KeyCode::ArrowLeft => {
                 if selecting {
                     runtime.mutate_chat_editor(ChatEditor::select_left);
